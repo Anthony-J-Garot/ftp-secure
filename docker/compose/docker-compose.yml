@@ -1,0 +1,45 @@
+version: "3.3"
+services:
+  sftp:
+    build:
+      context: ../sftp
+      dockerfile: Dockerfile
+    volumes:
+      - $PWD/upload:/home/anthony/upload
+    ports:
+      - "2222:22"
+    # Specifies that anthony will be user 1000 (same as on MacOS) with group users(100)
+    command: anthony:pass:1000:100
+
+  ftp_tls:
+    build:
+      context: ../ftp
+      dockerfile: Dockerfile
+    volumes:
+      - $PWD/upload:/home/anthony/upload
+    # The container ports. These must match what PureFTP uses.
+    ports:
+      - "21:21"
+      - "30000-30009:30000-30009"
+    environment:
+      # Look at /run.sh for where ENV vars are used.
+      #
+      # -d = log enabled, see /var/log/messages
+      # --tls = if set, and TSL_CN, TLS_ORG, TLS_C set, it will generate a self-signed certificate
+      - ADDED_FLAGS="-d -d --tls 2"
+      - PUBLICHOST=ftpserver
+      - TLS_CN=ftpserver
+      - TLS_ORG=demo
+      - TLS_C=US
+      - TLS_USE_DSAPRAM=true
+      - FTP_USER_NAME=anthony
+      - FTP_USER_PASS=pass
+      - FTP_USER_HOME=/home/anthony
+      - FTP_USER_UID=1000
+      - FTP_USER_GID=100
+      - FTP_PASSIVE_PORTS=30000:30009
+    # Adds to /etc/hosts
+    hostname: ftpserver
+
+    # How to see the environment
+    # command: "/bin/bash -c 'set > junk.txt && tail -f /dev/null'"

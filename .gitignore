@@ -1,0 +1,9 @@
+# PyCharm goodies
+.idea/
+
+# Documents and files I don't want in the repo
+_archive/
+
+# Python cruft
+__pycache__/
+*.pyc
