@@ -84,6 +84,11 @@ running_container_action() {
 existing_container_action() {
     # Assume anything getting to this point has been stopped
     case "$ACTION" in
+    start)
+        if [[ "$IMAGE_NO" == "" || "$IMAGE_NO" == "$2" ]]; then
+            eval "$DOCKER start $1"
+        fi
+        ;;
     rm)
         if [[ "$IMAGE_NO" == "" || "$IMAGE_NO" == "$2" ]]; then
             eval "$DOCKER rm $1"

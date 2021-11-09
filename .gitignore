@@ -7,3 +7,6 @@ _archive/
 # Python cruft
 __pycache__/
 *.pyc
+
+# These are self-signed, but no reason to give 'em away
+ssl/

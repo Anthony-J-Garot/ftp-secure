@@ -31,7 +31,7 @@ So, 2222 is used for the localhost port.
 
 Used PureFTPd.
 
-- https://github.com/stilliard/docker-pure-ftpd
+- [stilliard/docker-pure-ftpd repo](https://github.com/stilliard/docker-pure-ftpd)
 - https://download.pureftpd.org/pub/pure-ftpd/doc/README
 - https://docs.python.org/3/library/ftplib.html
 
@@ -61,34 +61,17 @@ drwxrwxrwx    2 1000       1000             4096 Nov  4 14:39 upload
 It would seem that not verifying the self-signed certificate
 is necessary in the python code.
 
-### Using a self-signed certificate
+### Debugging
 
-On the client machine, which is Linux:
-$ sudo apt-get install ca-certificates
+You can change the endpoint to 'tail -f /dev/null' then
+run pure-ftpd manually. This dumps the details to the 
+console.
 
-Then TTY into the container:
-
-```
-$ ./d6.sh tty 1
-# cd /etc/ssl/private
-# cat pure-ftpd.pem
-```
-
-Copy the BEGIN CERTIFICATE to END CERTIFICATE stuff.
-
-Back on the client Linux box:
+Or look in the log file:
 
 ```
-$ sudo vim /usr/share/ca-certificates/pure-ftpd.crt
+$ tail -f /var/log/pure-ftpd/pureftpd.log
 ```
-
-Paste what you copied.
-
-```
-$ sudo dpkg-reconfigure ca-certificates
-```
-
-Obviously choose the pure-ftpd.crt.
 
 # Where To Begin With This Project
 

@@ -1,6 +1,6 @@
 import os
 import ssl
-from ftplib import FTP, FTP_TLS
+import ftplib  # For FTP and FTP_TLS
 import pysftp  # For SFTP
 
 # FTP
@@ -8,6 +8,7 @@ FTP_SERVER = "ftp.us.debian.org"
 # FTP_TLS
 FTP_TLS_SERVER = "ftpserver"
 FTP_TLS_PORT = 21
+SELF_SIGNED_CERTIFICATE = 'ssl/pure-ftpd.pem'
 # SFTP
 SFTP_SERVER = "localhost"
 EXTRA_KNOWN_HOSTS = 'extra_known_hosts'  # in addition to the ~/.ssh/known_hosts
@@ -21,17 +22,44 @@ FILE_NAME = 'SAMPLE.txt'
 DOWNLOAD_DIR = 'download'
 
 
-def ftp_get_file(file_name, directory_name=None):
+class MyFTP_TLS(ftplib.FTP_TLS):
+    """
+Explicit FTPS, with shared TLS session.
+This was necessary to get the prot_p option to work, i.e. the data protection level
+set to private, which means data is also encrypted using TLS.
+    """
+
+    def ntransfercmd(self, cmd, rest=None):
+        conn, size = ftplib.FTP.ntransfercmd(self, cmd, rest)
+        if self._prot_p:
+            session = self.sock.session
+            if isinstance(self.sock, ssl.SSLSocket):
+                session = self.sock.session
+            conn = self.context.wrap_socket(conn,
+                                            server_hostname=self.host,
+                                            session=session)  # this is the fix
+        return conn, size
+
+
+def ftp_get_file(file_name, remote_dir=None, local_dir=None):
     """
 Connects to an FTP server and tries to pull a file, by name, using binary mode.
 This is the simplest scenario, so, at present, this assumes an anonymous connection.
+NOTE: At present I don't have a container running vanilla ftp.
     """
 
+    # Into where files are downloaded
+    if local_dir is not None:
+        print(f"Changing local dir to {local_dir}")
+        os.chdir(local_dir)
+
     # https://docs.python.org/3/library/ftplib.html
-    ftp = FTP(FTP_SERVER)
+    ftp = ftplib.FTP(FTP_SERVER)
     ftp.login(user='anonymous', passwd='', acct='')
-    if directory_name is not None:
-        ftp.cwd(directory_name)
+
+    if remote_dir is not None:
+        print(f"Changing remote dir to {remote_dir}")
+        ftp.cwd(remote_dir)
 
     # Not strictly necessary, but it's nice to see what's there
     ftp.retrlines('LIST')
@@ -40,12 +68,14 @@ This is the simplest scenario, so, at present, this assumes an anonymous connect
     with open(file_name, 'wb') as fp:
         ftp.retrbinary(f'RETR {file_name}', fp.write)
 
-    ftp.quit()
+    ftp.close()
 
 
-def ftp_tls_get_file(file_name, directory_name=None):
+def ftp_tls_get_file(file_name, remote_dir=None, local_dir=None):
     """
 Connects to an FTP server, using TLS, and tries to pull a file, by name, using binary mode.
+The self-signed certificate is generated when the server starts through one or more of
+the ENV variables.
     """
 
     USE_SELF_SIGNED = True
@@ -53,13 +83,18 @@ Connects to an FTP server, using TLS, and tries to pull a file, by name, using b
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         context.check_hostname = True
         context.verify_mode = ssl.VerifyMode.CERT_REQUIRED
-        context.load_verify_locations('/usr/share/ca-certificates/pure-ftpd.crt')
+        context.load_verify_locations(SELF_SIGNED_CERTIFICATE)
     else:
         # This works, but it's probably not the safest
         context = ssl.create_default_context()
 
+    # Into where files are downloaded
+    if local_dir is not None:
+        print(f"Changing local dir to {local_dir}")
+        os.chdir(local_dir)
+
     # https://docs.python.org/3/library/ftplib.html
-    ftp_tls = FTP_TLS(host=FTP_TLS_SERVER, context=context)
+    ftp_tls = MyFTP_TLS(host=FTP_TLS_SERVER, context=context)
     ftp_tls.set_debuglevel(1)
     ftp_tls.connect(port=21, timeout=10)
     ftp_tls.login(user='anthony', passwd='pass', acct='Normal')
@@ -70,11 +105,11 @@ Connects to an FTP server, using TLS, and tries to pull a file, by name, using b
     # Switch to secure data connection.
     # IMPORTANT! Otherwise, only the user and password is encrypted and not all the file data.
     ftp_tls.prot_p()
-    # ftp_tls.ccc()
     ftp_tls.pwd()
 
-    if directory_name is not None:
-        ftp_tls.cwd(directory_name)
+    if remote_dir is not None:
+        print(f"Changing remote dir to {remote_dir}")
+        ftp_tls.cwd(remote_dir)
 
     # Not strictly necessary, but it's nice to see what's there
     ftp_tls.retrlines('LIST')
@@ -87,7 +122,7 @@ Connects to an FTP server, using TLS, and tries to pull a file, by name, using b
     ftp_tls.close()
 
 
-def sftp_get_file(file_name, directory_name=None):
+def sftp_get_file(file_name, remote_dir=None, local_dir=None):
     """
 Connects to an SFTP server and tries to pull a file, by name, using binary mode.
     """
@@ -112,9 +147,15 @@ Connects to an SFTP server and tries to pull a file, by name, using binary mode.
             password=SFTP_PASSWORD,
             port=SFTP_PORT,
             cnopts=cnopts) as sftp:
-        if directory_name is not None:
-            print(f"Changing remote dir to {directory_name}")
-            sftp.cwd(directory_name)
+
+        # Into where files are downloaded
+        if local_dir is not None:
+            print(f"Changing local dir to {local_dir}")
+            os.chdir(local_dir)
+
+        if remote_dir is not None:
+            print(f"Changing remote dir to {remote_dir}")
+            sftp.cwd(remote_dir)
 
         # Not strictly necessary, but it's nice to see what's there
         print(f"PWD: {sftp.pwd}")
@@ -133,16 +174,13 @@ if __name__ == '__main__':
     if os.path.exists(f"{DOWNLOAD_DIR}/{FILE_NAME}"):
         os.remove(f"{DOWNLOAD_DIR}/{FILE_NAME}")
 
-    # Change to the download directory before starting the FTP server.
-    # Anything we download will go into here.
-    os.chdir(DOWNLOAD_DIR)
-
     # sftp_get_file(
     #     file_name=FILE_NAME,
-    #     directory_name=UPLOAD_DIR
+    #     remote_dir=UPLOAD_DIR
     # )
 
     ftp_tls_get_file(
         file_name=FILE_NAME,
-        directory_name=UPLOAD_DIR
+        remote_dir=UPLOAD_DIR,
+        local_dir=DOWNLOAD_DIR
     )

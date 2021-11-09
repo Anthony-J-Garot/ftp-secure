@@ -17,6 +17,7 @@ services:
       dockerfile: Dockerfile
     volumes:
       - $PWD/upload:/home/anthony/upload
+      - $PWD/ssl:/etc/ssl/private
     # The container ports. These must match what PureFTP uses.
     ports:
       - "21:21"
