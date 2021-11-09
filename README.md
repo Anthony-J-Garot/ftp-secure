@@ -6,21 +6,26 @@ TLS over FTP might look like.
 
 SFTP is preferred over TLS over FTP because it uses only one port.
 
+> Both SFTP and FTP over TLS securely transfer data—usernames, passwords, and file contents. However, SFTP enables bi-directional secure data transfer using one port. FTP over TLS requires multiple ports to be opened on a firewall—one for command data (to establish an encrypted connection) and at least one for file data.
+
 ## Dockerfile(s)
 
-Initially I had this project set up with a single docker-compose.yml
-file, but while trying to debug an issue with PureFTP, I wanted
-some tools inside the container, e.g. VIM and ps. I understand
-that some folks want the bare minimum in their docker containers,
-but not adding procps? Really?
+Initially this project was set up with a single docker-compose.yml
+file, but while trying to debug an issue with PureFTP, tools
+were added inside the container(s), e.g. VIM and ps. 
+
+I understand that some folks want the bare minimum for their 
+docker containers, but not adding `procps`? Really?
 
 ## SFTP notes
 
-- https://github.com/atmoz/sftp
+Used atmoz/sftp
+
+- [atmoz/sftp Docker Image](https://github.com/atmoz/sftp)
 - https://hub.docker.com/r/atmoz/sftp/dockerfile 
 
 Port 22 is normally for SSH but is also used for SFTP. 
-So, I used 2222 for the localhost port.
+So, 2222 is used for the localhost port.
 
 ## FTP notes
 
@@ -36,12 +41,6 @@ Got everything working such that a file could be downloaded
 from the FTP server using FTP_TLS. However, when `ftp_tls.prot_p()`
 was turned on, an error message occurred. Chasing that error
 was fruitless.
-
-Eventually loaded lftp:
-
-``` 
-$ sudo apt-get install lftp
-```
 
 Still unable to do a file LIST, but at least this time the 
 error seems more relevant.
@@ -70,9 +69,9 @@ $ sudo apt-get install ca-certificates
 Then TTY into the container:
 
 ```
-./d6.sh tty 1
-cd /etc/ssl/private
-cat pure-ftpd.pem
+$ ./d6.sh tty 1
+# cd /etc/ssl/private
+# cat pure-ftpd.pem
 ```
 
 Copy the BEGIN CERTIFICATE to END CERTIFICATE stuff.
@@ -95,13 +94,32 @@ Obviously choose the pure-ftpd.crt.
 
 Build both images and start them using the d6.sh script:
 ```
-./d6.sh build
+$ ./d6.sh build
+```
+
+A few dependencies and/or useful tools:
+
+``` 
+$ sudo apt-get install lftp
+$ sudo aptitude install docker-compose
+$ pip install pysftp
 ```
 
 Now you can run the python script.
 
 ```
-python3 main.py
+$ python3 main.py
+
+or
+
+$ ipdb3 main.py
+```
+
+You can connect using the d6.sh tool:
+
+```
+$ ./d6.sh lftp	# For FTP over TLS
+$ ./d6.sh sftp	# For sftp
 ```
 
 # d6.sh Tool

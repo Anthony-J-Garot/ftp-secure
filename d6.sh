@@ -131,7 +131,16 @@ ps)
     exit 0
     ;;
 ftp)
-    ftp -p -d -v localhost 21
+	# This will only work for regular ftp, not ftp over TLS.
+	# In other words, this is kind of useless. Use lftp instead. 
+    ftp -p -d -v ftpserver 21
+    exit 0
+    ;;
+lftp)
+	# This will work with ftp over TLS.
+	# Note that ftpserver is used over localhost because 
+	# that's what is specified in the self-signed certificate.
+    lftp -u anthony,pass -p 21 -d ftpserver
     exit 0
     ;;
 sftp)
