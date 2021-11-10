@@ -27,6 +27,14 @@ Used atmoz/sftp
 Port 22 is normally for SSH but is also used for SFTP. 
 So, 2222 is used for the localhost port.
 
+### Troubleshooting
+
+To fix `SSHException("Bad host key from server")`, add a known
+host entry to the "extra_known_hosts" file.
+
+This is somewhat tricky if using a port other than 22. See the
+function create_extra_known_hosts() for details.
+
 ## FTP notes
 
 Used PureFTPd.

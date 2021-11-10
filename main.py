@@ -1,7 +1,11 @@
 import os
+import re
+
 import ssl
 import ftplib  # For FTP and FTP_TLS
 import pysftp  # For SFTP
+from paramiko import transport
+import subprocess
 
 # FTP
 FTP_SERVER = "ftp.us.debian.org"
@@ -14,12 +18,12 @@ SFTP_SERVER = "localhost"
 EXTRA_KNOWN_HOSTS = 'extra_known_hosts'  # in addition to the ~/.ssh/known_hosts
 SSH_PRIVATE_KEY = '~/.ssh/id_rsa'
 SFTP_PORT = 2222
-SFTP_USER = 'anthony'
-SFTP_PASSWORD = 'pass'
-# File name that exists in upload dir
+# Misc
 UPLOAD_DIR = 'upload'
-FILE_NAME = 'SAMPLE.txt'
+FILE_NAME = 'SAMPLE.txt'  # A file that exists in ./upload dir
 DOWNLOAD_DIR = 'download'
+USERNAME = 'anthony'
+PASSWORD = 'pass'
 
 
 class MyFTP_TLS(ftplib.FTP_TLS):
@@ -96,8 +100,8 @@ the ENV variables.
     # https://docs.python.org/3/library/ftplib.html
     ftp_tls = MyFTP_TLS(host=FTP_TLS_SERVER, context=context)
     ftp_tls.set_debuglevel(1)
-    ftp_tls.connect(port=21, timeout=10)
-    ftp_tls.login(user='anthony', passwd='pass', acct='Normal')
+    ftp_tls.connect(port=FTP_TLS_PORT, timeout=10)
+    ftp_tls.login(user=USERNAME, passwd=PASSWORD, acct='')
 
     print(f"Sock is {ftp_tls.sock}")
 
@@ -127,11 +131,18 @@ def sftp_get_file(file_name, remote_dir=None, local_dir=None):
 Connects to an SFTP server and tries to pull a file, by name, using binary mode.
     """
 
-    # This is useful for debugging, but can give man in the middle issue,
-    # so it isn't the preferred way to specify the host keys. Instead,
-    # create an EXTRA_KNOWN_HOSTS file. See below.
+    print("Preferred keys")
+    print(transport.Transport._preferred_keys)
+    print()
+
+    # The following cnopts settings are useful for debugging, but can give man in the middle issue,
+    # so it isn't the preferred way to specify the host keys. Instead, create an EXTRA_KNOWN_HOSTS
+    # file. See below.
     # cnopts = pysftp.CnOpts()
     # cnopts.hostkeys = None
+
+    # pysftp does not support the host key entries with the port.
+    create_extra_known_hosts()
 
     # The ~/.ssh/known_hosts file entries cannot be read directly, so pull the
     # value from ~/.ssh/known_hosts then clean off the cruft to the first space.
@@ -143,8 +154,8 @@ Connects to an SFTP server and tries to pull a file, by name, using binary mode.
     with pysftp.Connection(
             host=SFTP_SERVER,
             private_key=SSH_PRIVATE_KEY,
-            username=SFTP_USER,
-            password=SFTP_PASSWORD,
+            username=USERNAME,
+            password=PASSWORD,
             port=SFTP_PORT,
             cnopts=cnopts) as sftp:
 
@@ -168,16 +179,38 @@ Connects to an SFTP server and tries to pull a file, by name, using binary mode.
         print("Closing SFTP connection")
         sftp.close()
 
+def create_extra_known_hosts():
+    """
+pysftp does not support the host key entries with the port.
+https://stackoverflow.com/questions/64438184/pysftp-throwing-paramiko-ssh-exception-sshexception-even-though-known-hosts-file
+So we gotta do some footwork.
+    """
+    SSH_KEYSCAN = '/usr/bin/ssh-keyscan'
+    output = subprocess.run([SSH_KEYSCAN, "-p", str(SFTP_PORT), SFTP_SERVER], capture_output=True)
+
+    pattern = re.compile('^\[(.+)\]:\d+$')
+    if output.returncode == 0:
+        with open(EXTRA_KNOWN_HOSTS, "w") as out:
+            lines = output.stdout.decode('utf-8').split('\n')
+            for line in lines:
+                # print(f"CHECKING {line}\n")
+                pieces = line.split(' ')
+                # print (f"PIECES {pieces[0]}\n")
+                match = pattern.match(pieces[0])
+                if match:
+                    # print(match[1])
+                    pieces[0] = match[1]
+                    out.write(" ".join(pieces))
 
 if __name__ == '__main__':
     # Clean existing file that might have been pulled from before
     if os.path.exists(f"{DOWNLOAD_DIR}/{FILE_NAME}"):
         os.remove(f"{DOWNLOAD_DIR}/{FILE_NAME}")
 
-    # sftp_get_file(
-    #     file_name=FILE_NAME,
-    #     remote_dir=UPLOAD_DIR
-    # )
+    sftp_get_file(
+        file_name=FILE_NAME,
+        remote_dir=UPLOAD_DIR
+    )
 
     ftp_tls_get_file(
         file_name=FILE_NAME,

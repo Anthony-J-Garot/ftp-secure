@@ -10,3 +10,4 @@ __pycache__/
 
 # These are self-signed, but no reason to give 'em away
 ssl/
+extra_known_hosts
